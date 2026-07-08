@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Miami & Keys Trip Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", PingFang SC, Microsoft YaHei, Noto Sans SC, Helvetica Neue, Arial, sans-serif; overflow: hidden; background-color: #f1f5f9; }
+    #app { position: relative; display: flex; width: 100%; height: 100%; }
+    #sidebar { width: 380px; height: 100%; background-color: #f0f2f5; box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05); z-index: 1000; display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-header { padding: 24px; border-bottom: 1px solid #e2e8f0; }
+    .sidebar-header h1 { font-size: 26px; font-weight: 700; color: #0f172a; margin-bottom: 4px; cursor: pointer; transition: opacity 0.2s ease; }
+    .sidebar-header h1:hover { opacity: 0.7; }
+    .sidebar-header p { font-size: 13px; color: #64748b; }
+    .sidebar-content { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .day-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .day-card:hover { border-color: #cbd5e1; background-color: #f8fafc; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+    .day-card.active { border-color: #0f172a; background-color: #ffffff; border-width: 2px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+    .day-card.collapsed { font-size: 13px; padding: 8px 14px; background-color: #f8fafc; border: 1px solid transparent; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; box-shadow: none; }
+    .day-card.collapsed:hover { background-color: #e2e8f0; border-color: #cbd5e1; }
+    .day-card.collapsed .day-header { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #64748b; text-transform: uppercase; margin-bottom: 0; }
+    .day-card.collapsed .day-title { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .day-card.collapsed .collapsed-pois { font-size: 11px; color: #64748b; line-height: 1.3; margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e2e8f0; }
+    .day-card.collapsed .collapsed-poi-name { font-size: 11px; color: #64748b; line-height: 1.3; }
+    .day-card.collapsed .driving-info,
+    .day-card.collapsed .sunlight-bar,
+    .day-card.collapsed .weather-info { display: none !important; }
+    .day-header { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+    .day-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+    .day-pois { list-style-type: none; margin-bottom: 8px; }
+    .sidebar-poi-item { cursor: pointer; transition: all 0.2s ease; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 4px; line-height: 1; }
+    .sidebar-poi-item:hover { background-color: #e2e8f0; }
+    .poi-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; vertical-align: middle; line-height: 1; margin: 0; }
+    .poi-name-text { flex: 1; font-size: 13px; font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; line-height: 1; vertical-align: middle; display: inline-flex; align-items: center; }
+    .poi-arrow { font-size: 10px; color: #94a3b8; opacity: 0; transition: opacity 0.2s ease, transform 0.2s ease; margin-left: 4px; line-height: 1; vertical-align: middle; display: inline-flex; align-items: center; }
+    .sidebar-poi-item:hover .poi-arrow { opacity: 1; transform: translateX(2px); }
+    .driving-info { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    .stay-info { font-size: 12px; color: #0f172a; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
+    .sunlight-bar { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
+    .weather-info { font-size: 11px; color: #475569; margin-top: 4px; }
+    #map { flex: 1; height: 100%; background-color: #f1f5f9; }
+    .leaflet-tile { filter: grayscale(1) brightness(0.96) contrast(1.05); }
+    .satellite-active .leaflet-tile { filter: none; }
+    .map-annotation-label { font-size: 14px; font-weight: 600; color: #0f172a; white-space: nowrap; background: none !important; border: none !important; box-shadow: none !important; }
+    .map-toggle-control { background: #ffffff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); padding: 4px; display: flex; align-items: center; gap: 4px; pointer-events: auto; }
+    .map-toggle-btn { border: none; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; background: transparent; color: #64748b; transition: all 0.15s ease; }
+    .map-toggle-btn.active { background-color: #0f172a; color: #ffffff; }
+    .map-toggle-divider { width: 1px; height: 16px; background-color: #e2e8f0; margin: 0 4px; }
+    .city-cluster-marker { display: block; width: 0 !important; height: 0 !important; }
+    .city-cluster-inner { background-color: #ffffff; color: #0f172a; border: 2px solid #0f172a; border-radius: 12px; padding: 6px 14px; display: inline-block; font-size: 16px; font-weight: 700; text-align: center; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); transition: background-color 0.2s ease, color 0.2s ease; white-space: nowrap; position: absolute; transform: translate(-50%, -50%); }
+    .city-cluster-inner:hover { background-color: #0f172a; color: #ffffff; }
+    .map-legend { background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); padding: 10px 12px; font-size: 11px; color: #334155; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+    .legend-item i { width: 14px; text-align: center; }
+    /* FIX 13: Detail panel = float right */
+    .detail-modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.15); z-index: 2000; display: none; opacity: 0; transition: opacity 0.25s ease-out; pointer-events: none; }
+    .detail-modal-overlay.open { opacity: 1; }
+    .detail-panel { position: fixed; right: 20px; top: 20px; width: 420px; max-width: calc(100% - 32px); max-height: calc(100vh - 40px); background-color: #ffffff; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25); border-radius: 12px; display: flex; flex-direction: column; overflow-y: auto; z-index: 2001; transform: scale(0.95); transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: auto; }
+    .detail-modal-overlay.open .detail-panel { transform: scale(1); }
+    .detail-close-btn { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.9); border: 1px solid #e2e8f0; font-size: 20px; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 6px rgba(0,0,0,0.1); transition: all 0.2s ease; }
+    .detail-close-btn:hover { background-color: #ffffff; color: #0f172a; transform: scale(1.05); }
+    .detail-carousel { position: relative; width: 100%; height: 250px; background-color: #e2e8f0; overflow: hidden; flex-shrink: 0; }
+    .detail-carousel img { width: 100%; height: 100%; object-fit: cover; display: none; cursor: pointer; transition: transform 0.3s ease; }
+    .detail-carousel img:hover { transform: scale(1.02); }
+    .detail-carousel img.active { display: block; }
+    .detail-carousel .carousel-nav { position: absolute; top: 50%; transform: translateY(-50%); background-color: rgba(255, 255, 255, 0.8); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #0f172a; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: all 0.15s ease; }
+    .detail-carousel .carousel-nav:hover { background-color: #ffffff; transform: translateY(-50%) scale(1.05); }
+    .detail-carousel .carousel-prev { left: 12px; }
+    .detail-carousel .carousel-next { right: 12px; }
+    .detail-carousel .carousel-dots { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 10; }
+    .detail-carousel .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background-color: rgba(255, 255, 255, 0.5); border: none; cursor: pointer; transition: all 0.2s ease; }
+    .detail-carousel .carousel-dot.active { background-color: #ffffff; width: 16px; border-radius: 4px; }
+    .detail-body { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+    .detail-day-indicator { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .detail-title-container { display: flex; align-items: center; gap: 18px; }
+    .detail-title-container h2 { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+    .detail-title-container i { font-size: 20px; }
+    .detail-section { padding: 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02); }
+    .detail-section h4 { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: #0f172a; display: flex; align-items: center; gap: 6px; }
+    .description-section { border-left: 4px solid #3B82F6; background-color: #ffffff; border-top: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
+    .description-section p { font-size: 16px; line-height: 1.7; color: #334155; }
+    .tips-section { border-left: 4px solid #F59E0B; background-color: #FFFBEB; border-top: 1px solid #FEF3C7; border-right: 1px solid #FEF3C7; border-bottom: 1px solid #FEF3C7; }
+    .tips-section p { font-size: 15px; line-height: 1.7; color: #78350F; }
+    
+    .detail-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .detail-gmaps-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 10px 18px; background-color: #0f172a; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 8px; text-align: center; transition: background-color 0.2s ease, transform 0.1s ease; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.1); }
+    .detail-gmaps-btn:hover { background-color: #1e293b; transform: translateY(-1px); }
+    .detail-note-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 8px 16px; background-color: transparent; color: #475569; border: 1px solid #cbd5e1; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+    .detail-note-btn:hover { background-color: #f8fafc; border-color: #94a3b8; color: #0f172a; }
+    .note-input-container { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 6px; }
+    .note-input-container textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; color: #334155; font-family: inherit; resize: none; }
+    .note-input-container textarea:focus { outline: none; border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .note-save-btn { align-self: flex-end; padding: 6px 14px; background-color: #0f172a; color: #ffffff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background-color 0.15s ease; }
+    .note-save-btn:hover { background-color: #1e293b; }
+    .note-display { margin-top: 6px; padding: 10px 12px; background-color: #f8fafc; border-left: 3px solid #64748b; border-radius: 0 6px 6px 0; font-size: 13px; color: #475569; line-height: 1.5; font-style: italic; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .note-text-wrapper { flex: 1; }
+    .note-delete-btn { background: none; border: none; padding: 0; color: #94a3b8; cursor: pointer; font-size: 14px; transition: color 0.2s ease; display: flex; align-items: center; justify-content: center; }
+    .note-delete-btn:hover { color: #ef4444; }
+    .fullscreen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.85); z-index: 2500; display: flex; align-items: center; justify-content: center; }
+    .fullscreen-image-container { width: 80vw; height: 80vh; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: grab; }
+    .fullscreen-image-container:active { cursor: grabbing; }
+    .fullscreen-image-container img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.1s ease; transform-origin: center center; user-select: none; }
+    .fullscreen-close-btn { position: absolute; top: 24px; right: 24px; font-size: 40px; color: #ffffff; background: none; border: none; cursor: pointer; z-index: 2600; opacity: 0.8; transition: opacity 0.2s; }
+    .fullscreen-close-btn:hover { opacity: 1; }
+    .leaflet-tooltip-own { background-color: #0f172a !important; color: #ffffff !important; border: none !important; opacity: 0.9 !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Helvetica Neue", Arial, sans-serif !important; font-size: 13px !important; padding: 6px 10px !important; border-radius: 6px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
+    .drag-handle { display: none; }
+    @media (max-width: 768px) {
+      #app { flex-direction: column-reverse; height: 100vh; overflow: hidden; }
+      #sidebar {
+        width: 100%;
+        height: 32vh;
+        max-height: 100vh;
+        box-shadow: 0 -4px 16px rgba(0,0,0,0.1);
+        background-color: #f0f2f5;
+        display: flex;
+        flex-direction: column;
+        transition: height 0.3s ease;
+        z-index: 2000;
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        overflow: hidden;
+      }
+      #sidebar.dragging {
+        transition: none !important;
+      }
+      .sidebar-header { padding: 12px 16px; flex-shrink: 0; }
+      .sidebar-header h1 { font-size: 18px; }
+      .sidebar-header p { font-size: 11px; margin: 0; }
+      
+      .drag-handle {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 20px;
+        background-color: #f0f2f5;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        flex-shrink: 0;
+      }
+      .drag-handle-bar {
+        width: 36px;
+        height: 4px;
+        background-color: #cbd5e1;
+        border-radius: 2px;
+      }
+      
+      /* Mobile Collapsed State Styles */
+      #sidebar.mobile-collapsed .sidebar-content {
+        flex-direction: column !important;
+        overflow-y: hidden !important;
+        overflow-x: hidden !important;
+        padding: 12px 16px !important;
+        gap: 0 !important;
+      }
+      #sidebar.mobile-collapsed .day-card {
+        min-width: 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 8px 14px !important;
+        background-color: #f8fafc !important;
+        border: 1px solid transparent !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
+      }
+      #sidebar.mobile-collapsed .day-card.active {
+        display: block !important;
+      }
+      
+      /* Mobile Expanded State Styles */
+      #sidebar.mobile-expanded .sidebar-content {
+        flex-direction: column !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding: 16px 20px !important;
+        gap: 16px !important;
+      }
+      #sidebar.mobile-expanded .day-card {
+        min-width: 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+      }
+      
+      #map { flex: 1; width: 100%; height: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar" class="mobile-collapsed">
+      <div id="sidebar-drag-handle" class="drag-handle">
+        <div class="drag-handle-bar"></div>
+      </div>
+      <div class="sidebar-header">
+        <h1 id="sidebar-title">Miami & Keys Trip</h1>
+        <p>9-Day Miami · Keys · Tampa · Nov 20–28, 2026</p>
+      </div>
+      <div class="sidebar-content" id="sidebar-content"></div>
+    </div>
+    <div id="map"></div>
+    <div id="detail-overlay" class="detail-modal-overlay">
+      <div id="detail-panel" class="detail-panel">
+        <button class="detail-close-btn" id="detail-close-btn">&times;</button>
+        <div id="detail-content"></div>
+      </div>
+    </div>
+  </div>
+  <div id="fullscreen-overlay" class="fullscreen-overlay" style="display: none;">
+    <button class="fullscreen-close-btn" id="fullscreen-close-btn">&times;</button>
+    <div class="fullscreen-image-container">
+      <img id="fullscreen-img" src="" alt="Fullscreen Image">
+    </div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ----------------------------------------------------
+    // DATA
+    // ----------------------------------------------------
+    var tripData = [
+      { day:1, dateStr:"DAY 1 · THU NOV 20", title:"Miami Arrival", drivingInfo:"MIA Airport to Kimpton EPIC (~15min)", stay:"🏨 Stay: Kimpton EPIC Hotel",
+        pois:[{name:"MIA Airport",coord:[25.7958,-80.2870],type:"airport",icon:"fa-plane-departure",color:"#c62828",desc:"",images:[]},{name:"Perez Art Museum Miami ★",coord:[25.7858,-80.1867],type:"hiking",icon:"fa-landmark",color:"#2e7d32",desc:"",images:[]},{name:"Bayside Marketplace",coord:[25.7786,-80.1862],type:"hiking",icon:"fa-shopping-bag",color:"#e65100",desc:"",images:[]},{name:"Wynwood Walls",coord:[25.8014,-80.1997],type:"hiking",icon:"fa-palette",color:"#7b1fa2",desc:"",images:[]},{name:"CVI CHE 105 ★",coord:[25.7687,-80.1880],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[25.7687,-80.1880],[25.7858,-80.1867],[25.7786,-80.1862],[25.8014,-80.1997]] },
+      { day:2, dateStr:"DAY 2 · FRI NOV 21", title:"Miami Exploration", drivingInfo:"Miami Downtown to Vizcaya to Crandon Beach", stay:"🏨 Stay: Kimpton EPIC Hotel",
+        pois:[{name:"Vizcaya Museum Garden ★",coord:[25.7444,-80.2106],type:"hiking",icon:"fa-landmark",color:"#2e7d32",desc:"",images:[]},{name:"Little Havana & Calle Ocho",coord:[25.7703,-80.2286],type:"hiking",icon:"fa-music",color:"#e65100",desc:"",images:[]},{name:"Bill Baggs Cape Florida SP",coord:[25.6747,-80.1576],type:"hiking",icon:"fa-monument",color:"#2e7d32",desc:"",images:[]},{name:"Crandon Beach ★",coord:[25.7105,-80.1525],type:"hiking",icon:"fa-umbrella-beach",color:"#1565c0",desc:"",images:[]},{name:"Cajun Boil Brickell ★",coord:[25.7649,-80.1923],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]},{name:"Cafe La Trove ★",coord:[25.7761,-80.1969],type:"bar",icon:"fa-wine-glass",color:"#7b1fa2",desc:"",images:[]}],
+        routeCoords:[[25.7690,-80.1895],[25.7444,-80.2106],[25.7703,-80.2286],[25.7105,-80.1525],[25.7649,-80.1923],[25.7761,-80.1969]] },
+      { day:3, dateStr:"DAY 3 · SAT NOV 22", title:"South Beach & Miami", drivingInfo:"Kimpton to Lincoln Rd to South Beach", stay:"🏨 Stay: Kimpton EPIC Hotel",
+        pois:[{name:"1111 Lincoln Rd Garage ★",coord:[25.7906,-80.1367],type:"hiking",icon:"fa-building",color:"#2e7d32",desc:"",images:[]},{name:"South Beach",coord:[25.7826,-80.1341],type:"hiking",icon:"fa-umbrella-beach",color:"#1565c0",desc:"",images:[]},{name:"South Pointe Park",coord:[25.7659,-80.1325],type:"hiking",icon:"fa-monument",color:"#e65100",desc:"",images:[]},{name:"MILA on Lincoln Road ★",coord:[25.7918,-80.1375],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[25.7690,-80.1895],[25.7906,-80.1367],[25.7826,-80.1341],[25.7852,-80.1874]] },
+      { day:4, dateStr:"DAY 4 · SUN NOV 23", title:"Miami to Key West", drivingInfo:"Miami to Key West via Overseas Hwy US-1 (~3.5h)", stay:"🏨 Stay: Ocean Key Resort & Spa",
+        pois:[{name:"Hemingway Home & Museum ★",coord:[24.5512,-81.8008],type:"hiking",icon:"fa-landmark",color:"#2e7d32",desc:"",images:[]},{name:"Key West Lighthouse",coord:[24.5506,-81.8010],type:"hiking",icon:"fa-monument",color:"#1565c0",desc:"",images:[]},{name:"Sunset at Mallory Sq ★",coord:[24.5595,-81.8074],type:"hiking",icon:"fa-sun",color:"#e65100",desc:"",images:[]},{name:"The Lobster Shack Key West ★",coord:[24.5588,-81.8039],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]},{name:"Blue Heaven",coord:[24.5531,-81.7968],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[25.7690,-80.1895],[24.5586,-81.8031],[24.5512,-81.8008],[24.5506,-81.8010],[24.5595,-81.8074]] },
+      { day:5, dateStr:"DAY 5 · MON NOV 24", title:"Key West Exploration", drivingInfo:"Stay in Key West (same resort)", stay:"🏨 Stay: Ocean Key Resort & Spa",
+        pois:[{name:"Butterfly Museum ★",coord:[24.5508,-81.7995],type:"hiking",icon:"fa-bug",color:"#2e7d32",desc:"",images:[]},{name:"Southernmost Point USA",coord:[24.5465,-81.7978],type:"hiking",icon:"fa-map-pin",color:"#1565c0",desc:"",images:[]},{name:"Duval Street",coord:[24.5546,-81.8040],type:"hiking",icon:"fa-road",color:"#e65100",desc:"",images:[]},{name:"Fort Zachary Taylor",coord:[24.5467,-81.8102],type:"hiking",icon:"fa-fort-awesome",color:"#2e7d32",desc:"",images:[]},{name:"Garbo’s Grill",coord:[24.5544,-81.8036],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]},{name:"Latitudes on Sunset Key",coord:[24.5588,-81.8107],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[24.5586,-81.8031],[24.5508,-81.7995],[24.5465,-81.7978],[24.5546,-81.8040],[24.5467,-81.8102]] },
+      { day:6, dateStr:"DAY 6 · TUE NOV 25", title:"Drive to Tampa", drivingInfo:"Key West → Fort Myers → Sarasota → Tampa (~7h)", stay:"🏠 Stay: Parents’ Home",
+        pois:[{name:"Edison & Ford Estates ★",coord:[26.6344,-81.8801],type:"hiking",icon:"fa-landmark",color:"#2e7d32",desc:"",images:[]},{name:"Sarasota Beach ★",coord:[27.2691,-82.5707],type:"hiking",icon:"fa-umbrella-beach",color:"#1565c0",desc:"",images:[]},{name:"Columbia Restaurant",coord:[27.9414,-82.4563],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[24.5586,-81.8031],[26.6344,-81.8801],[27.2691,-82.5707],[27.9414,-82.4563]] },
+      { day:7, dateStr:"DAY 7 · WED NOV 26", title:"Tampa Culture", drivingInfo:"Stay in Tampa (parents’ home)", stay:"🏠 Stay: Parents’ Home",
+        pois:[{name:"Ringling Museum ★",coord:[27.3830,-82.5593],type:"hiking",icon:"fa-landmark",color:"#2e7d32",desc:"",images:[]},{name:"The Florida Aquarium",coord:[27.9442,-82.4448],type:"hiking",icon:"fa-fish",color:"#1565c0",desc:"",images:[]},{name:"Tampa Riverwalk",coord:[27.9461,-82.4590],type:"hiking",icon:"fa-person-walking",color:"#e65100",desc:"",images:[]},{name:"Thanksgiving Dinner",coord:[27.9480,-82.4600],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[27.9414,-82.4563],[27.3830,-82.5593],[27.9442,-82.4448],[27.9461,-82.4590]] },
+      { day:8, dateStr:"DAY 8 · THU NOV 27", title:"Tampa Black Friday", drivingInfo:"Busch Gardens → Ybor City → Shopping", stay:"🏠 Stay: Parents’ Home",
+        pois:[{name:"Busch Gardens Tampa",coord:[28.0390,-82.4228],type:"hiking",icon:"fa-ticket",color:"#2e7d32",desc:"",images:[]},{name:"Ybor City Historic Dist.",coord:[27.9601,-82.4402],type:"hiking",icon:"fa-cigar",color:"#e65100",desc:"",images:[]},{name:"International Plaza",coord:[27.9668,-82.5212],type:"hiking",icon:"fa-bag-shopping",color:"#1565c0",desc:"",images:[]},{name:"Tampa Premium Outlets",coord:[28.2296,-82.3492],type:"hiking",icon:"fa-bag-shopping",color:"#1565c0",desc:"",images:[]},{name:"Ulele",coord:[27.9658,-82.4667],type:"dining",icon:"fa-utensils",color:"#c62828",desc:"",images:[]}],
+        routeCoords:[[27.9480,-82.4600],[28.0390,-82.4228],[27.9601,-82.4402],[27.9668,-82.5212],[28.2296,-82.3492]] },
+      { day:9, dateStr:"DAY 9 · FRI NOV 28", title:"Departure", drivingInfo:"Tampa to Airport (~15min)", stay:"🏨 Depart: Fly Home",
+        pois:[{name:"Tampa Intl Airport",coord:[27.9755,-82.5332],type:"airport",icon:"fa-plane-departure",color:"#1565c0",desc:"",images:[]}],
+        routeCoords:[[27.9755,-82.5332]] }
+    ];
+
+
+    var sunlightData = {
+      1: {sunrise:"06:45", sunset:"17:32", daylight:"~10h47min"},
+      2: {sunrise:"06:46", sunset:"17:31", daylight:"~10h45min"},
+      3: {sunrise:"06:47", sunset:"17:30", daylight:"~10h43min"},
+      4: {sunrise:"06:48", sunset:"17:29", daylight:"~10h41min"},
+      5: {sunrise:"06:49", sunset:"17:29", daylight:"~10h40min"},
+      6: {sunrise:"06:50", sunset:"17:28", daylight:"~10h38min"},
+      7: {sunrise:"06:51", sunset:"17:28", daylight:"~10h37min"},
+      8: {sunrise:"06:52", sunset:"17:27", daylight:"~10h35min"},
+      9: {sunrise:"06:53", sunset:"17:27", daylight:"~10h34min"}
+    };
+
+    var weatherData = {
+      1: {condition:"\u2600\ufe0f", low:"22\u00b0C", avg:"26\u00b0C", high:"29\u00b0C", wind:"12 mph"},
+      2: {condition:"\u2600\ufe0f", low:"21\u00b0C", avg:"26\u00b0C", high:"30\u00b0C", wind:"10 mph"},
+      3: {condition:"\u26c5", low:"20\u00b0C", avg:"25\u00b0C", high:"28\u00b0C", wind:"15 mph"},
+      4: {condition:"\u2600\ufe0f", low:"22\u00b0C", avg:"26\u00b0C", high:"29\u00b0C", wind:"14 mph"},
+      5: {condition:"\u2600\ufe0f", low:"22\u00b0C", avg:"26\u00b0C", high:"28\u00b0C", wind:"12 mph"},
+      6: {condition:"\u26c5", low:"18\u00b0C", avg:"23\u00b0C", high:"26\u00b0C", wind:"16 mph"},
+      7: {condition:"\u2600\ufe0f", low:"17\u00b0C", avg:"22\u00b0C", high:"25\u00b0C", wind:"10 mph"},
+      8: {condition:"\u2600\ufe0f", low:"16\u00b0C", avg:"22\u00b0C", high:"26\u00b0C", wind:"12 mph"},
+      9: {condition:"\u2600\ufe0f", low:"17\u00b0C", avg:"23\u00b0C", high:"27\u00b0C", wind:"8 mph"}
+    };
+
+        var cityClusters = [
+      { name:"Miami", coord:[25.78,-80.18], bounds:[[25.70,-80.25],[25.85,-80.12]] },
+      { name:"Key West", coord:[24.55,-81.80], bounds:[[24.53,-81.83],[24.57,-81.77]] },
+      { name:"Sarasota", coord:[27.27,-82.57], bounds:[[27.20,-82.65],[27.35,-82.50]] },
+      { name:"Tampa", coord:[27.95,-82.46], bounds:[[27.85,-82.55],[28.25,-82.33]] }
+    ];
+
+    var fullNames = {};
+
+    var noteData = {};
+
+
+
+
+
+    var expandedDetails = {
+  "Tampa Intl Airport":{desc:"Tampa International Airport (TPA) is consistently ranked one of North America’s best airports. Known for its efficient hub-and-spoke layout with automated people movers, TPA serves over 20 million passengers annually. The main terminal features abundant natural light, local art installations, and dining including the Columbia Restaurant Cafe. A stress-free gateway to end your Florida road trip.",tips:"Allow 2 hours before domestic flights. The rental car center is connected by monorail—follow signs for Rental Car Return and allow 15 extra minutes. Grab a Cuban sandwich from Columbia Cafe in Airside F."},
+  "MIA Airport":{desc:"Miami International Airport (MIA) is one of the busiest international gateways in the United States, serving as the primary hub for travel between North America and Latin America and the Caribbean. The airport features extensive dining ranging from Cuban coffee counters to sit-down restaurants, plus duty-free shopping. Located just 8 miles west of downtown Miami, it’s a quick 15-minute drive to the Kimpton EPIC Hotel.",tips:"Pick up your rental car at the MIA Rental Car Center connected by the MIA Mover train. Allow 30-45 minutes for baggage claim and car pickup. Traffic on SR-836 can be heavy—use the express lanes if available. Grab a cafecito at Versailles or La Carreta in the terminal for a taste of Miami before you even leave the airport."},
+  "Perez Art Museum Miami ★":{desc:"Perez Art Museum Miami (PAMM) is a modern and contemporary art museum overlooking Biscayne Bay in Museum Park. Designed by Herzog & de Meuron, the building features hanging gardens, expansive glass walls, and shaded verandas. The collection focuses on 20th and 21st century art from the Americas, the Caribbean, and the African diaspora. As stunning architecturally as the art within it.",tips:"Admission $18. Free on second Saturdays. Don’t miss the outdoor sculpture garden with sweeping bay views. The on-site Verde restaurant offers excellent waterfront dining. Allow 2 hours minimum. Combine with the adjacent Frost Science Museum for a full museum day."},
+  "Bayside Marketplace":{desc:"Bayside Marketplace is Miami’s iconic open-air waterfront shopping and entertainment complex on Biscayne Bay. With over 120 shops, live music daily, and numerous waterfront restaurants, it’s one of Miami’s most visited attractions. Boat tours and speedboat rides depart from the adjacent marina. Live Latin music fills the air from afternoon through evening.",tips:"Free admission. Try fresh coconut water from street vendors. The Hard Rock Cafe balcony has great bay views. Take the free Metromover (Bayside station) to avoid costly downtown parking. Boat tours are cheapest when booked before noon."},
+  "Wynwood Walls":{desc:"Wynwood Walls is an outdoor museum of international street art in Miami’s Wynwood Arts District. Founded in 2009, the curated compound features massive murals by renowned artists including Shepard Fairey and Kenny Scharf. The surrounding neighborhood has transformed from warehouses into one of the world’s most vibrant open-air galleries, with over 40 large-scale murals across multiple city blocks.",tips:"Free admission. Best photos in morning light when streets are quieter. Wear comfortable shoes—you’ll want to explore beyond the main Walls compound. Wynwood Kitchen & Bar inside serves excellent small plates. Visit on a weekday to avoid weekend crowds."},
+  "CVI CHE 105 ★":{desc:"CVI.CHE 105 is a celebrated Peruvian restaurant in downtown Miami by Chef Juan Chipoco, importing fresh seafood daily and preparing over 15 varieties of ceviche using traditional Peruvian techniques. Widely considered among the best Peruvian restaurants in the United States, the vibrant interior and Latino music create an energetic atmosphere. A must-visit for food lovers.",tips:"Order the Ceviche Tasting Trio to sample three styles. The causa limeña is legendary. Reservations strongly recommended—fills fast especially weekends. Their pisco sour is widely regarded as one of the best in the country. Portions are generous—share appetizers."},
+  "Vizcaya Museum Garden ★":{desc:"Vizcaya Museum & Gardens is a breathtaking Italian Renaissance-style villa built in 1916 as the winter estate of James Deering. Set on 10 acres of formal gardens overlooking Biscayne Bay, the mansion features 34 decorated rooms with 15th-19th century European antiques. The gardens feature fountains, grottos, and a stone barge decorated with mythological statues. One of Florida’s most romantic and photogenic spots.",tips:"Admission $25. Book online to skip lines. Visit early morning for best light and smallest crowds. The gardens take 1.5 hours to fully explore. Don’t miss the hidden grotto and bay-facing stone barge. The main house is not air-conditioned—dress accordingly."},
+  "Little Havana & Calle Ocho":{desc:"Little Havana is Miami’s vibrant Cuban-American neighborhood centered along Calle Ocho (SW 8th Street). Filled with the aroma of Cuban coffee, salsa music, and locals playing dominos in Maximo Gomez Park. Colorful murals, cigar factories, Latin art galleries, and family-owned restaurants line the streets. An afternoon here feels like a brief trip to Havana without leaving the United States.",tips:"Start at Domino Park (SW 8th St & 15th Ave) and walk west. Must-try: pastelitos and a cafecito from any ventanita. Visit the last Friday of the month for Viernes Culturales, a free monthly arts and music festival. Ball & Chain bar has live salsa and a beautiful courtyard."},
+  "Bill Baggs Cape Florida SP":{desc:"Bill Baggs Cape Florida State Park is a pristine natural paradise at the southern tip of Key Biscayne, home to the historic Cape Florida Lighthouse—built in 1825 and the oldest standing structure in Miami-Dade County. The park features over a mile of stunning Atlantic beach with calm turquoise waters, mangrove trails for biking, and a seawall for fishing. The juxtaposition of the 95-foot brick lighthouse against the tropical beachscape creates one of South Florida’s most photogenic scenes.",tips:"Admission $8 per vehicle. Arrive early—the park closes when at capacity, which happens most weekends by 11 AM. Climb the lighthouse for $2 (109 steps, incredible views). Bike rentals available near the entrance. No Name Harbor restaurant serves casual seafood. Pack bug spray near mangroves. Open 8 AM to sundown."},
+  "Crandon Beach ★":{desc:"Crandon Park Beach on Key Biscayne is routinely ranked among America’s top 10 beaches. Two miles of pristine white sand, calm turquoise waters protected by an offshore sandbar, and rows of coconut palms make it the perfect family beach. Shallow, wave-free water extends far from shore. The park features picnic pavilions, grills, tennis courts, a golf course, and a nature center with eco-tours.",tips:"Parking $7 weekends, $5 weekdays. Arrive before 10 AM on weekends for a spot near the water. The sandbar creates tide pools at low tide—great for kids. Crandon Park Nature Center free admission with fossilized mangrove reef exhibit. Bring your own food—concession is limited."},
+  "Cajun Boil Brickell ★":{desc:"Cajun Boil Seafood Restaurant in Brickell brings authentic Louisiana-style Cajun seafood boils to Miami. Choose your seafood (snow crab, shrimp, crawfish, mussels, lobster), pick your seasoning and spice level, and it arrives steaming hot in a bag poured onto your table. Messy, fun, social dining with incredible flavor at reasonable prices in upscale Brickell.",tips:"Order the Combo Bag for best value. Get the House Special seasoning at medium spice. Wear clothes you don’t mind getting messy. Skip the utensils and dive in. Beignets for dessert are a must. Happy hour 4-7 PM weekdays."},
+  "Cafe La Trove ★":{desc:"Cafe La Trova is a James Beard Award-nominated Cuban cocktail bar in Little Havana, named one of the World’s 50 Best Bars. Founded by legendary cantinero Julio Cabrera, the bar serves meticulously crafted classic Cuban cocktails in a retro 1970s Havana setting. Live Cuban music fills the room most nights, and the cantinero-style flair is as entertaining as the drinks are delicious.",tips:"Reservations strongly recommended—books up weeks in advance. Try the Hotel Nacional or Cafecito Martini. Happy hour 5-7 PM Tue-Fri. If no reservation, arrive at 5 PM opening for bar seats. Live music typically starts 8 PM. Don’t miss the classic daiquiri."},
+  "1111 Lincoln Rd Garage ★":{desc:"1111 Lincoln Road is an architectural masterpiece by Herzog & de Meuron (architects of Beijing’s Bird’s Nest). Far more than a parking structure, this sculptural concrete building with dramatically cantilevered slabs and soaring heights has become an iconic Miami Beach landmark. The top level hosts yoga classes and events with sweeping South Beach views. Architecture enthusiasts consider it one of the most significant parking structures ever built.",tips:"Free to enter and walk around. The top floor offers excellent 360-degree views—great for sunset photos. Parking $4/hour but worth the convenience. Ground floor Shake Shack has outdoor seating. Walk directly across to Lincoln Road Mall, Miami Beach’s premier pedestrian street."},
+  "South Beach":{desc:"South Beach is Miami’s world-famous stretch of white sand and turquoise water, backed by the Art Deco Historic District—the largest concentration of Art Deco architecture in the world. Over 800 pastel-colored buildings from the 1920s-1940s feature porthole windows, neon lighting, and aerodynamic curves. Ocean Drive along the beachfront is lined with restored boutique hotels, outdoor cafes, and legendary nightlife venues.",tips:"Join a free walking tour from the Miami Design Preservation League (10:30 AM daily from 1001 Ocean Drive). Best photo light is early morning or golden hour. Beach access is free. Lummus Park path is perfect for biking. Use public garages on 13th or 16th Streets—street parking is extremely limited."},
+  "Frost Museum of Science":{desc:"The Phillip and Patricia Frost Museum of Science spans 250,000 square feet across four buildings in Museum Park. It features a three-story aquarium with a 31-foot oculus lens giving the sensation of looking up through the ocean from below, a 250-seat planetarium with 8K projection, and extensive interactive exhibits on Florida’s ecosystems and the science of flight. Sharks and stingrays swim overhead in the Gulf Stream Aquarium.",tips:"Admission $30 adults. Plan 3-4 hours. Buy online for discount. The rooftop terrace has beautiful Biscayne Bay and skyline views. Visit aquarium feeding times (posted daily) for the most active fish. Combined ticket with PAMM for savings if visiting both."},
+  "MILA on Lincoln Road ★":{desc:"MILA is a stunning Mediterranean-Asian rooftop restaurant perched above Lincoln Road Mall. The design is a sensory masterpiece—earthy textures, soft lighting, suspended greenery, and flowing water features. The menu fuses Mediterranean ingredients with Japanese techniques: miso-marinated black cod, truffle crispy rice, wagyu gyoza. By night, DJs transform the space into one of Miami Beach’s most exclusive destinations.",tips:"Reservations 2-3 weeks in advance—one of Miami’s hardest tables. Dress upscale chic, no beachwear. Tasting menu ($95/person) is excellent value. Lychee martini is their signature. Arrive 7 PM for sunset dinner, stay for the late-night vibe shift around 10 PM."},
+  "Hemingway Home & Museum ★":{desc:"The Ernest Hemingway Home & Museum is the Spanish Colonial residence where the Nobel Prize-winning author lived from 1931-1940. The limestone house features the writer’s original furniture, his pool house writing studio, and the famous swimming pool—said to have cost $20,000 in 1938. The property is home to 40-60 polydactyl (six-toed) cats, descendants of Hemingway’s own cats. Literary history, tropical beauty, and feline charm make this Key West’s most-visited attraction.",tips:"Admission $18 (cash preferred). The 30-minute guided tours are excellent and included. Look for extra-toed cats throughout the grounds! The bookstore sells signed Hemingway works. Visit early or late afternoon to avoid crowds. Next door is the lighthouse—combo ticket available."},
+  "Key West Lighthouse":{desc:"The Key West Lighthouse, built in 1848 and raised in 1894, stands as a sentinel over the island’s shores. Climb 88 iron spiral steps to the observation platform for panoramic views of Key West and the Atlantic. The Keeper’s Quarters museum tells the story of the keepers—including several remarkable women—and displays original Fresnel lenses and nautical artifacts.",tips:"Admission $17, or combo with Hemingway Home ($26). The spiral staircase is narrow—large bags are inconvenient. The view from the top is worth the climb, best on clear days. Visit after Hemingway Home since it’s next door. Photography from the top is excellent, especially west toward Sunset Key."},
+  "Sunset at Mallory Sq ★":{desc:"The Sunset Celebration at Mallory Square is Key West’s most beloved nightly tradition. Two hours before sunset, the waterfront plaza fills with street performers, musicians, acrobats, jugglers, and artisans. As the sun descends into the Gulf of Mexico, the gathered crowd applauds—a ritual ongoing since the 1960s. The combination of spectacular natural beauty and eclectic human performance creates a uniquely Key West experience.",tips:"Free admission. Arrive by 5 PM for best viewing spots along the railing. Bring cash for tips and artisan purchases. Best sunset photos are 15 minutes after the sun dips below horizon. Schooner Wharf Bar serves excellent mojitos and conch fritters with front-row views."},
+  "Blue Heaven":{desc:"Blue Heaven is Key West’s most iconic restaurant, set in a whimsical outdoor garden courtyard in historic Bahama Village. Dining takes place under a canopy of tropical trees with strung lights, while free-roaming chickens and cats wander between tables. Famous for Caribbean-inspired seafood and the best key lime pie on the island. The atmosphere is quintessentially, unmistakably Key West.",tips:"Expect a wait—no reservations, lines start before opening. The bar in the yard serves drinks while you wait. Must-order: Caribbean BBQ shrimp, lobster Benedict (brunch), and the towering meringue-topped key lime pie. Weekend brunch features live jazz or blues. Cash preferred."},
+  "Butterfly Museum ★":{desc:"The Key West Butterfly & Nature Conservatory is a magical glass-domed tropical habitat housing 50-60 species of butterflies from around the world, plus 20 species of exotic birds. Hundreds of vibrantly colored butterflies float through the air, landing on tropical flowers and occasionally on delighted visitors. Two resident flamingos, Rhett and Scarlett, add extra charm to this enchanting indoor paradise.",tips:"Admission $15. Butterflies most active in the morning. Walk slowly and wear bright colors—butterflies may land on you! No touching butterflies, but photos encouraged. The gift shop has beautiful butterfly jewelry. Allow 45 minutes. Great rainy-day activity since it’s indoors."},
+  "Southernmost Point USA":{desc:"The Southernmost Point Buoy is one of the most photographed landmarks in the United States—a large concrete buoy in red, black, and yellow marking the southernmost point of the continental US, just 90 miles from Cuba. Installed in 1983, it’s an iconic Key West symbol surrounded by pastel conch houses and tropical foliage.",tips:"Free and accessible 24/7. Expect a line midday—early morning before 9 AM or after sunset are best for shorter waits. The line moves quickly. Combine with nearby Southernmost Beach Cafe for a drink with a view."},
+  "Duval Street":{desc:"Duval Street is Key West’s legendary 1.25-mile main thoroughfare from the Gulf to the Atlantic. Lined with pastel conch houses, lively bars, art galleries, boutiques, and restaurants, it’s the pulsing heart of the island. By day: charming shopping. By night: one of America’s most famous party streets with open-air bars, drag shows, and live music. Landmarks include Sloppy Joe’s Bar (a Hemingway haunt since 1933) and Captain Tony’s Saloon.",tips:"Walk the full length at least once—character changes dramatically from Gulf end (quieter) to Atlantic end (wilder). Sloppy Joe’s has live music all day. Don’t miss Green Parrot—oldest bar in Key West and a genuine dive. Best shopping on the quieter Mallory Square end. Wear comfortable shoes."},
+  "Fort Zachary Taylor":{desc:"Fort Zachary Taylor Historic State Park houses the largest collection of Civil War-era cannons in the US. Built in 1845, the three-story fort played a crucial role in the Civil War blockade. Beyond history, it features Key West’s best beach for swimming and snorkeling—a rocky shoreline with crystal-clear waters teeming with tropical fish. One of Key West’s most underrated gems.",tips:"Admission $6 per vehicle or $2.50 pedestrian/cyclist. Bring water shoes—the beach is rocky but the snorkeling is excellent because of the rocks. Rent snorkel gear at the concession. Free guided fort tours daily at 11 AM. Pack a picnic—shaded areas under Australian pines are perfect for lunch."},
+  "Garbo’s Grill":{desc:"Garbo’s Grill is a beloved Key West food truck serving Korean-Mexican fusion tacos and burgers from a tiny Airstream trailer at Hanks Hair of the Dog Saloon. Consistently top-ranked on TripAdvisor, the menu features Kogi tacos (Korean BBQ short rib with kimchi), ahi tuna poke tacos with wasabi aioli, and legendary Cayo Fish tacos with fresh local catch.",tips:"Everything is made to order—expect 15-20 minute wait, worth every minute. Fish tacos change daily based on what’s fresh. Order at the window, then grab a courtyard table. The Umami Burger is phenomenal. Cash speeds things up. Closes kitchen around 9 PM."},
+  "Latitudes on Sunset Key":{desc:"Latitudes is a fine-dining restaurant on the private island of Sunset Key, accessible only by a 10-minute ferry from Key West’s Opal Key Resort Marina. White tablecloths, candlelight, and tables directly on the beach with waves lapping at the shore. The menu focuses on fresh Florida seafood with Caribbean influences. The exclusivity, ferry ride, and Gulf waters create a magical, once-in-a-lifetime dining experience.",tips:"Reservations essential—book 2+ weeks ahead, especially sunset. Ferry departs Opal Key Resort Marina. Dress resort formal: no shorts or flip-flops for dinner. Arrive 20 minutes early for the ferry. Sunset reservations (~6 PM) most coveted. Budget $100-150/person with drinks."},
+  "Edison & Ford Estates ★":{desc:"The Edison & Ford Winter Estates in Fort Myers is 20 acres of history featuring the winter homes of Thomas Edison and Henry Ford. Edison’s Seminole Lodge includes his laboratory, botanical gardens with 1,700+ plants, and the largest banyan tree in the continental US (planted 1925, spanning nearly an acre). Ford’s Craftsman bungalow and the museum housing one of the world’s largest Edison invention collections complete this fascinating stop on the drive to Tampa.",tips:"Admission $25, includes audio tour. Allow 3 hours minimum. Visit early to avoid heat—extensive garden walking. The banyan tree is absolutely massive and a must-see. Don’t skip the museum with early phonographs and light bulbs. Gift shop sells seeds from Edison’s garden plants. Open 9 AM-5:30 PM."},
+  "Sarasota Beach ★":{desc:"Siesta Key Beach in Sarasota is consistently ranked the #1 beach in the United States. The sand is 99% pure quartz crystal that stays cool underfoot even on blazing days, with a powdered-sugar texture. Turquoise water is shallow and calm, extending far offshore. The beach spans hundreds of yards wide. Breathtaking Gulf Coast sunsets paint the sky brilliant orange and pink. Free parking and excellent facilities.",tips:"Parking is free but fills fast—arrive before 10 AM weekends. The sand truly doesn’t get hot—you have to feel it to believe it. Sunday evening drum circles on the beach are a local tradition. Bring water shoes for long walks. Snack bar is decent but pricey; pack a cooler."},
+  "Columbia Restaurant":{desc:"The Columbia Restaurant in Ybor City is Florida’s oldest restaurant and the world’s largest Spanish restaurant, continuously operated by the Gonzmart family since 1905. It occupies an entire city block with 15 dining rooms seating 1,700, featuring hand-painted tiles, ornate fountains, and a stunning central courtyard. Signature dishes include the tableside-tossed 1905 Salad and paella a la Valenciana. Flamenco dancers perform on weekend evenings—a tradition spanning over a century.",tips:"Reservations strongly recommended. Request main courtyard dining room for best ambiance. Must-order: 1905 Salad (tableside) and a pitcher of sangria. Flamenco Friday and Saturday evenings ($7 cover). Budget $35-50/person. Bakery next door sells fresh Cuban bread. Validate parking in adjacent structure."},
+  "Ringling Museum ★":{desc:"The John and Mable Ringling Museum of Art is Florida’s official state art museum. Built by circus magnate John Ringling, the pink Italian Renaissance-style museum houses works by Rubens, van Dyck, Velázquez, and Titian. The 66-acre estate includes the Ca’ d’Zan mansion—a 56-room Venetian Gothic palace on Sarasota Bay—plus the Circus Museum with the world’s largest miniature circus model, and Mable’s spectacular rose garden. Old World elegance on Florida’s Gulf Coast.",tips:"Admission $25 (Mondays free for Florida residents). Plan 4 hours minimum. Visit Ca’ d’Zan first—tours fill up. The miniature circus model took 50 years to build—incredible. Rose garden near Mable’s grave is beautiful. Museum Cafe is decent but pack snacks. Closed Thanksgiving and Christmas."},
+  "The Florida Aquarium":{desc:"The Florida Aquarium in downtown Tampa houses over 14,000 aquatic animals in a 250,000-square-foot facility. The Coral Reef Gallery’s 500,000-gallon tank features sharks, sea turtles, and giant groupers through floor-to-ceiling windows. The Wetlands Trail walk-through recreates Florida’s mangrove swamps with free-flying birds and river otters. Nationally recognized sea turtle and coral conservation programs.",tips:"Admission $36 (save $3 buying online). Allow 3 hours. Shark and otter feeding times are highlights. Outdoor stingray touch pool open weather-permitting. Located in Channelside with easy Riverwalk access. Parking $10 in adjacent lot."},
+  "Tampa Riverwalk":{desc:"The Tampa Riverwalk is a 2.6-mile continuous waterfront pedestrian path along the Hillsborough River and Garrison Channel, connecting parks, museums, restaurants, and hotels. Named one of America’s best riverwalks, it passes Curtis Hixon Park, the Straz Center, Tampa Museum of Art, and the convention center. Landscaped gardens, public art, playgrounds, and splash pads create a vibrant downtown public space. Especially magical at sunset when the skyline reflects off the water.",tips:"Free and open 24/7. Rent a bike from Coast Bike Share stations. Start at Armature Works (north end, great food hall) and walk south. The Pirate Water Taxi ($20 day pass) runs along the river. Best visited late afternoon for sunset from Ulele’s lawn or Armature Works dock."},
+  "Thanksgiving Dinner":{desc:"Home-cooked Thanksgiving dinner at the parents’ home in Tampa! Traditional American feast with roast turkey, stuffing, mashed potatoes, cranberry sauce, and all the classic fixings. A wonderful opportunity to rest, recharge, and experience a genuine American holiday celebration with loved ones. November weather is perfect for an after-dinner walk along Bayshore Boulevard.",tips:"Ask what dish you can contribute. Wright’s Gourmet House (since 1963) in Tampa makes legendary cakes and pies perfect for bringing. If you’re not cooking, offer cleanup duties. After dinner, head to Tampa Riverwalk or Bayshore for a digestif walk."},
+  "Busch Gardens Tampa":{desc:"Busch Gardens Tampa Bay is a 335-acre African-themed park combining world-class thrill rides with one of North America’s largest zoos. Signature coasters: SheiKra (200-foot vertical drop), Iron Gwazi (world’s fastest hybrid coaster), and Montu (one of the world’s tallest inverted coasters). The Serengeti Plain spans 65 acres with free-roaming giraffes, zebras, and rhinos visible from the Serengeti Express train. Animal encounters include giraffe feeding and cheetah runs.",tips:"Tickets from $90 online (cheaper than gate). Arrive at opening for shortest coaster lines. Serengeti Safari (extra cost) gets you onto the plains to feed giraffes—worth every penny. Quick Queue passes worthwhile on weekends. Free beer samples for adults 21+ at Hospitality House. Download app for wait times and show schedules."},
+  "Ybor City Historic Dist.":{desc:"Ybor City is Tampa’s National Historic Landmark District, founded in the 1880s as the Cigar Capital of the World. Brick streets, wrought-iron balconies, and historic social clubs tell the story of the Cuban, Spanish, and Italian immigrants who built this community. 7th Avenue (La Septima) is lined with cigar shops where rollers still hand-roll cigars in storefront windows, alongside eclectic restaurants and craft cocktail bars. By night, Ybor transforms into Tampa’s premier entertainment district.",tips:"Visit during the day for cigar-rolling demonstrations and history, at night for nightlife. Take the free TECO Historic Streetcar from downtown—a charming 10-minute ride. King Corona Cigars for cafe con leche and watching rollers at work. Ybor City Museum State Park ($4) is excellent for history. Use Centro Ybor garage ($2 first 3 hours)."},
+  "International Plaza":{desc:"International Plaza and Bay Street is Tampa’s premier upscale mall, anchored by Neiman Marcus, Nordstrom, and Dillard’s with 200+ stores including Louis Vuitton, Gucci, Apple, and Anthropologie. The open-air Bay Street features restaurants and bars. Sophisticated design with marble floors, palms, and natural light. On Black Friday, extended hours and deep discounts make it a prime holiday shopping destination.",tips:"Black Friday hours typically start 6 AM—arrive early. Park in the Nordstrom wing garage for less crowding. Cheesecake Factory and Capital Grille on Bay Street for post-shopping meals. Valet at Neiman Marcus entrance worth $8. Sign up for store loyalty programs for additional Black Friday discounts."},
+  "Tampa Premium Outlets":{desc:"Tampa Premium Outlets is an open-air outlet mall in Wesley Chapel with 110+ designer stores including Nike, Coach, Ralph Lauren, Michael Kors, and Kate Spade. Outlet pricing offers 25-65% off retail year-round, with deeper discounts on Black Friday. Covered walkways and Florida-friendly layout make extended shopping comfortable.",tips:"Black Friday typically opens Thanksgiving evening—check exact hours. Download Premium Outlets app for free VIP coupon book. Nike and Coach have the longest lines; visit first. Comfortable shoes are non-negotiable for this outdoor mall. Parking is free but fills fast; carpool or use rideshare. Food options limited—eat breakfast first."},
+  "Ulele":{desc:"Ulele (you-lay-lee) is a spectacular restaurant occupying the restored 1903 Water Works building on the Hillsborough River. Named after a Tocobaga princess, it celebrates Florida’s indigenous and multicultural cuisine: char-grilled oysters, fresh-caught pompano, grouper, alligator hush puppies, and bison ribeye cooked on a custom wood-fired grill. An on-site craft brewery and expansive waterfront patio with stunning sunset views complete this Tampa culinary landmark.",tips:"Reservations essential—one of Tampa’s most popular. Request outdoor patio seating at sunset. The char-grilled oysters are legendary—order at least six. The bronze Princess Ulele statue is in the front garden. On-site brewery tasting room opens before dinner. After dinner, walk the Riverwalk—Ulele connects directly. Budget $40-55/person with drinks."},
+  "The Lobster Shack Key West ★":{desc:"The Lobster Shack is a beloved Key West institution serving fresh Florida spiny lobster in a colorful, casual open-air setting overlooking the marina. The menu features lobster prepared every way imaginable: lobster rolls, grilled lobster tail, lobster mac and cheese, and the whole lobster platter. The laid-back waterfront atmosphere and incredibly fresh seafood make this a quintessential Key West lunch spot.",tips:"Get there before noon to beat the lunch rush. The lobster roll served warm with butter is the must-order. Conch fritters are an excellent starter. Outdoor seating offers marina views. Budget $20-35 per person. Cash appreciated but cards accepted. No reservations. Closed Tuesdays."},
+};
+
+
+    var map = L.map('map', { zoomControl: true, minZoom: 4, maxZoom: 16 }).setView([26.5, -81.0], 7);
+    var positronTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' });
+    var satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community' });
+    positronTile.addTo(map);
+
+    var activeRouteGroup = L.layerGroup().addTo(map);
+    var staticRouteGroup = L.layerGroup().addTo(map);
+    var markerGroup = L.layerGroup().addTo(map);
+    var leaderLineGroup = L.layerGroup().addTo(map);
+    var textLabelGroup = L.layerGroup().addTo(map);
+    var clusterGroup = L.layerGroup().addTo(map);
+    var drawingLayerGroup = L.layerGroup().addTo(map);
+
+    var routes = {};
+    var poisMarkers = {};
+    var activeDay = null;
+    var sidebarContent = document.getElementById('sidebar-content');
+    var driveTimes = {1:"🚗 ~15 min",4:"🚗 ~3.5 hours",6:"🚗 ~7 hours"};
+    var fallbackImage = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/MiamiSouthBeachPanoramaEdit.jpg/500px-MiamiSouthBeachPanoramaEdit.jpg";
+
+    var verifiedImages = {
+      "Perez Art Museum Miami \u2605": [
+            "https://images.pexels.com/photos/162389/lost-places-pforzheim-art-museum-museum-162389.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ringling_Museum_entrance_Sarasota_Florida.jpg/500px-Ringling_Museum_entrance_Sarasota_Florida.jpg",
+            "https://images.pexels.com/photos/269032/pexels-photo-269032.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Bayside Marketplace": [
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Lifeguard_stand%2C_Miami_Beach.jpg/500px-Lifeguard_stand%2C_Miami_Beach.jpg",
+            "https://images.pexels.com/photos/1450353/pexels-photo-1450353.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Wynwood Walls": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Wynwood_Walls_%2810106520595%29.jpg/500px-Wynwood_Walls_%2810106520595%29.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Wynwood_Walls_%2810106520595%29.jpg/500px-Wynwood_Walls_%2810106520595%29.jpg"
+      ],
+      "CVI CHE 105 \u2605": [
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Vizcaya Museum Garden \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/2/25/Villa_Vizcaya_20110228.jpg",
+            "https://images.pexels.com/photos/38136/pexels-photo-38136.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/158028/banyan-tree-ficus-bengalensis-nature-green-158028.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Little Havana & Calle Ocho": [
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Crandon Beach \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/c/c9/Crandon_Park_Modified.jpg",
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1450353/pexels-photo-1450353.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Cajun Boil Brickell \u2605": [
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Cafe La Trove \u2605": [
+            "https://images.pexels.com/photos/941864/pexels-photo-941864.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/338504/pexels-photo-338504.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1283219/pexels-photo-1283219.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "1111 Lincoln Rd Garage \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ringling_Museum_entrance_Sarasota_Florida.jpg/500px-Ringling_Museum_entrance_Sarasota_Florida.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/1111_Lincoln_Road_at_night.jpg/500px-1111_Lincoln_Road_at_night.jpg",
+            "https://images.pexels.com/photos/269032/pexels-photo-269032.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "South Beach": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/MiamiSouthBeachPanoramaEdit.jpg/500px-MiamiSouthBeachPanoramaEdit.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Lifeguard_stand%2C_Miami_Beach.jpg/500px-Lifeguard_stand%2C_Miami_Beach.jpg"
+      ],
+      "Frost Museum of Science": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ringling_Museum_entrance_Sarasota_Florida.jpg/500px-Ringling_Museum_entrance_Sarasota_Florida.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/1111_Lincoln_Road_at_night.jpg/500px-1111_Lincoln_Road_at_night.jpg",
+            "https://images.pexels.com/photos/269032/pexels-photo-269032.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "MILA on Lincoln Road \u2605": [
+            "https://images.pexels.com/photos/941864/pexels-photo-941864.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/338504/pexels-photo-338504.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1283219/pexels-photo-1283219.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Hemingway Home & Museum \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/Hemingwayhouse.jpg",
+            "https://images.pexels.com/photos/104827/cat-pet-animal-domestic-104827.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/45201/kitty-cat-baby-kitty-cartoon-45201.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Key West Lighthouse": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Key_West_Lighthouse.jpg/500px-Key_West_Lighthouse.jpg",
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Sunset at Mallory Sq \u2605": [
+            "https://images.pexels.com/photos/2065842/pexels-photo-2065842.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/533923/pexels-photo-533923.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Blue Heaven": [
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Butterfly Museum \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/7/73/Monarch_Butterfly_Danaus_plexippus_Male_2664px.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/6/63/Monarch_In_May.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ringling_Museum_entrance_Sarasota_Florida.jpg/500px-Ringling_Museum_entrance_Sarasota_Florida.jpg"
+      ],
+      "Southernmost Point USA": [
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Lifeguard_stand%2C_Miami_Beach.jpg/500px-Lifeguard_stand%2C_Miami_Beach.jpg"
+      ],
+      "Duval Street": [
+            "https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/38136/pexels-photo-38136.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Fort Zachary Taylor": [
+            "https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/38136/pexels-photo-38136.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Garbo\u2019s Grill": [
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Latitudes on Sunset Key": [
+            "https://images.pexels.com/photos/2065842/pexels-photo-2065842.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/189349/pexels-photo-189349.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/533923/pexels-photo-533923.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Edison & Ford Estates \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/5/5f/Moonlight_Garden%2C_Edison_and_Ford_Winter_Estates%2C_Fort_Myers%2C_Florida.JPG",
+            "https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/158028/banyan-tree-ficus-bengalensis-nature-green-158028.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Sarasota Beach \u2605": [
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Lifeguard_stand%2C_Miami_Beach.jpg/500px-Lifeguard_stand%2C_Miami_Beach.jpg",
+            "https://images.pexels.com/photos/1450353/pexels-photo-1450353.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Columbia Restaurant": [
+            "https://upload.wikimedia.org/wikipedia/commons/1/12/Paella_de_marisco_01.jpg",
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Ringling Museum \u2605": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Ringling_Museum_entrance_Sarasota_Florida.jpg/500px-Ringling_Museum_entrance_Sarasota_Florida.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/1111_Lincoln_Road_at_night.jpg/500px-1111_Lincoln_Road_at_night.jpg"
+      ],
+      "The Florida Aquarium": [
+            "https://images.pexels.com/photos/1010537/pexels-photo-1010537.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/189349/pexels-photo-189349.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Tampa Riverwalk": [
+            "https://images.pexels.com/photos/2387873/pexels-photo-2387873.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/38136/pexels-photo-38136.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Thanksgiving Dinner": [
+            "https://upload.wikimedia.org/wikipedia/commons/d/d2/Oven_roasted_brine-soaked_turkey.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/a/a3/Thanksgiving_Turkey.jpg",
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Busch Gardens Tampa": [
+            "https://images.pexels.com/photos/106155/roller-coaster-theme-park-amusement-park-dyrehavsbakken-106155.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/3411135/pexels-photo-3411135.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Ybor City Historic Dist.": [
+            "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "International Plaza": [
+            "https://images.pexels.com/photos/264547/pexels-photo-264547.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/5632386/pexels-photo-5632386.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/135620/pexels-photo-135620.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Tampa Premium Outlets": [
+            "https://images.pexels.com/photos/264547/pexels-photo-264547.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/5632386/pexels-photo-5632386.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/135620/pexels-photo-135620.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Ulele": [
+            "https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ],
+      "Tampa Intl Airport": [
+            "https://images.pexels.com/photos/2026324/pexels-photo-2026324.jpeg?auto=compress&cs=tinysrgb&w=800",
+            "https://images.pexels.com/photos/1004584/pexels-photo-1004584.jpeg?auto=compress&cs=tinysrgb&w=800"
+      ]
+};
+
+    var uniquePois = [];
+    var seenNames = {};
+    for (var d = 0; d < tripData.length; d++) {
+      var day = tripData[d];
+      for (var p = 0; p < day.pois.length; p++) {
+        var poi = day.pois[p];
+        if (expandedDetails[poi.name]) { poi.desc = expandedDetails[poi.name].desc; poi.tips = expandedDetails[poi.name].tips; }
+        else { poi.desc = "No detailed description available."; poi.tips = "No tips available."; }
+        poi.day = day.day;
+        if (!seenNames[poi.name]) {
+          seenNames[poi.name] = true;
+          poi.dayDateStr = day.dateStr;
+          if (verifiedImages[poi.name] && verifiedImages[poi.name].length > 0) { poi.images = verifiedImages[poi.name]; }
+          else if (poi.name === "Florida Everglades Safari" && verifiedImages["AWCC"]) { poi.images = verifiedImages["AWCC"]; }
+          else { poi.images = [fallbackImage]; }
+          uniquePois.push(poi);
+        }
+      }
+    }
+    for (var i = 0; i < uniquePois.length; i++) {
+      var poiA = uniquePois[i];
+      poiA.randY = (Math.random() - 0.5);
+      poiA.randX = (Math.random() - 0.5);
+      poiA.offsetCoord = [poiA.coord[0] + poiA.randY * 0.004, poiA.coord[1] + poiA.randX * 0.006];
+      poiA.labelAngle = (i % 2 === 0) ? ((i % 4 === 0) ? -0.1 * Math.PI : 0.1 * Math.PI) : ((i % 4 === 1) ? 1.1 * Math.PI : 0.9 * Math.PI);
+    }
+
+    function getSanitizedId(name) { return 'poi-' + name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase(); }
+
+    function getDayCardHtml(day, isActive) {
+      if (!isActive) {
+        var html = '<div class="day-header">' + day.dateStr + '</div><div class="day-title">' + day.title + '</div>';
+        if (day.pois && day.pois.length > 0) {
+          html += '<div class="collapsed-pois">';
+          for (var j = 0; j < day.pois.length; j++) {
+            html += '<div class="collapsed-poi-name">' + day.pois[j].name + '</div>';
+          }
+          html += '</div>';
+        }
+        if (day.stay) {
+          html += '<div class="stay-info">' + day.stay + '</div>';
+        }
+        return html;
+      }
+      var html = '<div class="day-header">' + day.dateStr + '</div><div class="day-title">' + day.title + '</div><ul class="day-pois">';
+      for (var j = 0; j < day.pois.length; j++) {
+        var poi = day.pois[j];
+        var dn = fullNames[poi.name] || poi.name;
+        html += '<li class="sidebar-poi-item" data-poi-name="' + poi.name.replace(/"/g, '&quot;') + '"><span class="poi-dot" style="background-color:' + poi.color + ';"></span><span class="poi-name-text">' + dn + '</span><i class="fa-solid fa-chevron-right poi-arrow"></i></li>';
+      }
+      html += '</ul>';
+      if (day.drivingInfo) html += '<div class="driving-info"><i class="fa-solid fa-route"></i> ' + day.drivingInfo + '</div>';
+      if (day.stay) html += '<div class="stay-info">' + day.stay + '</div>';
+      var sd = sunlightData[day.day];
+      if (sd) {
+        html += '<div class="sunlight-bar">';
+        html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#64748B;margin-bottom:2px;">';
+        html += '<span>' + sd.sunrise + ' \u2191</span><span>' + sd.sunset + ' \u2193</span>';
+        html += '</div>';
+        html += '<div style="height:8px;border-radius:4px;background:linear-gradient(to right, #4A90D9, #F5D742, #6B5B95);width:100%;"></div>';
+        html += '</div>';
+      }
+      var wd = weatherData[day.day];
+      if (wd) {
+        html += '<div class="weather-info">' + wd.condition + ' <span style="color:#1d4ed8;font-weight:600;font-size:14px;">' + wd.low + '</span> <span style="color:#64748b;">~</span> <span style="color:#b91c1c;font-weight:600;font-size:14px;">' + wd.high + '</span>  |  \uD83D\uDCA8 <span style="opacity:0.45;font-size:11px;">' + wd.wind + '</span></div>';
+      }
+      return html;
+    }
+
+    function updateSidebar() {
+      sidebarContent.innerHTML = '';
+      var isMobileCollapsed = (window.innerWidth <= 768 && document.getElementById('sidebar').classList.contains('mobile-collapsed'));
+      
+      var displayDay = activeDay;
+      if (isMobileCollapsed && activeDay === null) {
+        displayDay = 1;
+      }
+      
+      for (var i = 0; i < tripData.length; i++) {
+        var day = tripData[i];
+        var isActive = (displayDay === day.day);
+        
+        if (isMobileCollapsed && !isActive) {
+          continue; 
+        }
+        
+        var card = document.createElement('div');
+        card.className = (isActive && !isMobileCollapsed) ? 'day-card active' : 'day-card collapsed';
+        card.id = 'day-card-' + day.day;
+        card.setAttribute('data-day', day.day);
+        card.innerHTML = getDayCardHtml(day, isActive && !isMobileCollapsed);
+        sidebarContent.appendChild(card);
+        (function(d) { card.addEventListener('click', function(e) {
+          if (!e.target.closest('.sidebar-poi-item')) { selectDay(d.day); }
+        }); })(day);
+      }
+      var items = document.querySelectorAll('.sidebar-poi-item');
+      for (var i = 0; i < items.length; i++) {
+        (function(item) { item.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var poiName = item.getAttribute('data-poi-name');
+          for (var j = 0; j < uniquePois.length; j++) {
+            if (uniquePois[j].name === poiName) {
+              selectDay(uniquePois[j].day);
+              map.flyTo(uniquePois[j].coord, 13, { duration: 1.0 });
+              openPoiDetails(uniquePois[j]);
+              break;
+            }
+          }
+        }); })(items[i]);
+      }
+    }
+
+    function createSidebar() {
+      updateSidebar();
+    }
+    createSidebar();
+
+    function getPoiCoord(poi, zoom) {
+      if (zoom >= 12) {
+        return poi.coord;
+      }
+      if (zoom < 10) {
+        return [poi.coord[0] + (poi.randY || 0) * 0.02, poi.coord[1] + (poi.randX || 0) * 0.03];
+      }
+      return poi.offsetCoord || poi.coord;
+    }
+
+    function renderPois() {
+      markerGroup.clearLayers();
+      var currentZoom = map.getZoom();
+      for (var i = 0; i < uniquePois.length; i++) {
+        var poi = uniquePois[i];
+        var coord = getPoiCoord(poi, currentZoom);
+        var iconHtml = '<i class="fa-solid ' + poi.icon + '" style="color:' + poi.color + ';font-size:22px;transform:translate(-50%,-50%);"></i>';
+        var markerIcon = L.divIcon({ html: iconHtml, className: 'custom-poi-marker', iconSize: [24, 24], iconAnchor: [12, 12] });
+        var marker = L.marker(coord, { icon: markerIcon });
+        markerGroup.addLayer(marker);
+        poisMarkers[poi.name] = marker;
+        (function(p, co) { marker.on('click', function(e) { L.DomEvent.stopPropagation(e); selectDay(p.day); map.flyTo(co, 13, { duration: 1.0 }); openPoiDetails(p); }); })(poi, coord);
+      }
+    }
+
+    function renderAnnotations() {
+      leaderLineGroup.clearLayers();
+      textLabelGroup.clearLayers();
+      var currentZoom = map.getZoom();
+      var scale = Math.pow(2, (10 - currentZoom));
+
+      // Anti-overlap collision detection
+      var placedLabels = [];
+      function checkOverlap(lat, lng, labelWidth, labelHeight) {
+        var p = map.latLngToContainerPoint(L.latLng(lat, lng));
+        var x1 = p.x, y1 = p.y;
+        for (var k = 0; k < placedLabels.length; k++) {
+          var other = placedLabels[k];
+          if (Math.abs(x1 - other.x) < labelWidth && Math.abs(y1 - other.y) < labelHeight) {
+            return true;
+          }
+        }
+        placedLabels.push({x: x1, y: y1});
+        return false;
+      }
+
+      var fontSize = 14;
+      if (currentZoom <= 8) fontSize = 11;
+      else if (currentZoom <= 10) fontSize = 12;
+      else if (currentZoom >= 14) fontSize = 16;
+
+      for (var i = 0; i < uniquePois.length; i++) {
+        var poi = uniquePois[i];
+        var coord = getPoiCoord(poi, currentZoom);
+        var angleRad = poi.labelAngle;
+        var xo = Math.cos(angleRad) * 0.015 * scale;
+        var yo = Math.sin(angleRad) * 0.008 * scale;
+        var textCoord = [coord[0] + yo, coord[1] + xo];
+        var horizCoord = [textCoord[0], textCoord[1] + 0.008 * scale];
+        var displayName = poi.name.split(' (')[0];
+        var labelWidth = displayName.length * 9 + 50;
+        var labelHeight = 28;
+        var overlaps = checkOverlap(textCoord[0], textCoord[1], labelWidth, labelHeight);
+        if (overlaps && currentZoom < 13) {
+          displayName = '';
+        }
+        var opacityStyle = currentZoom <= 10 ? 'opacity:0.5;' : (currentZoom <= 11 ? 'opacity:0.8;' : '');
+        var labelHtml = '<div style="color:#0f172a;font-weight:600;font-size:' + fontSize + 'px;display:flex;align-items:center;gap:18px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,Noto Sans SC,Helvetica Neue,Arial,sans-serif;text-shadow:1px 1px 1px rgba(255,255,255,0.8);text-align:left;padding-left:18px;' + opacityStyle + '">' +
+          '<span style="white-space:nowrap;">' + displayName + '</span></div>';
+        var iconW = displayName ? displayName.length * 9 + 50 : 10;
+        var iconH = displayName ? 30 : 1;
+        var tli = L.divIcon({ html: labelHtml, className: 'map-annotation-label', iconSize: [iconW, iconH], iconAnchor: [0, 10] });
+        if (!displayName) { tli = L.divIcon({ html: '', className: 'map-annotation-label', iconSize: [1, 1], iconAnchor: [0, 0] }); }
+        var tlm = L.marker(horizCoord, { icon: tli, interactive: true });
+        textLabelGroup.addLayer(tlm);
+        (function(p, co) { tlm.on('click', function(e) { L.DomEvent.stopPropagation(e); selectDay(p.day); map.flyTo(co, 13, { duration: 1.0 }); openPoiDetails(p); }); })(poi, coord);
+      }
+    }
+
+    // ----------------------------------------------------
+    // DETAIL PANEL
+    // ----------------------------------------------------
+    window.openPoiDetails = function(poi) {
+      if (closePanelTimeout) { clearTimeout(closePanelTimeout); closePanelTimeout = null; }
+      closeDrawingIfActive();
+      var sid = getSanitizedId(poi.name);
+      var dd = poi.dayDateStr || "";
+      var dn = fullNames[poi.name] || poi.name;
+      var gm = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(poi.name.replace(/\s*\(.*?\)\s*/g, ''));
+      var ch = '';
+      if (poi.images && poi.images.length > 0) {
+        ch += '<div class="detail-carousel">';
+        if (poi.images.length > 1) { ch += '<button class="carousel-nav carousel-prev" data-carousel-dir="-1"><i class="fa-solid fa-chevron-left"></i></button><button class="carousel-nav carousel-next" data-carousel-dir="1"><i class="fa-solid fa-chevron-right"></i></button>'; }
+        for (var i = 0; i < poi.images.length; i++) {
+          var isMotel6 = poi.name === "Motel 6 Midtown";
+          var crossOriginAttr = isMotel6 ? '' : 'crossorigin="anonymous"';
+          var referrerPolicyAttr = isMotel6 ? '' : 'referrerpolicy="no-referrer"';
+          ch += '<img src="' + poi.images[i] + '" class="' + (i===0?'active':'') + '" data-index="' + i + '" ' + referrerPolicyAttr + ' ' + crossOriginAttr + ' loading="lazy" data-img-src="' + poi.images[i] + '">';
+        }
+        if (poi.images.length > 1) {
+          ch += '<div class="carousel-dots">';
+          for (var j = 0; j < poi.images.length; j++) { ch += '<button class="carousel-dot ' + (j===0?'active':'') + '" data-dot-index="' + j + '"></button>'; }
+          ch += '</div>';
+        }
+        ch += '</div>';
+      }
+      var html = ch +
+        '<div class="detail-body">' +
+        '<div class="detail-day-indicator">' + dd + '</div>' +
+        '<div class="detail-title-container"><i class="fa-solid ' + poi.icon + '" style="color:' + poi.color + '"></i><h2>' + dn + '</h2></div>' +
+        '<div class="detail-section description-section"><h4>📖 Description</h4><p>' + (poi.desc || 'No detailed description available.') + '</p></div>' +
+        '<div class="detail-section tips-section"><h4>💡 Tips</h4><p>' + (poi.tips || 'No detailed tips available.') + '</p></div>' +
+        '<div class="detail-actions">' +
+        '<a class="detail-gmaps-btn" href="' + gm + '" target="_blank"><i class="fa-solid fa-map-location-dot"></i> Open in Google Maps</a>' +
+        '<button class="detail-note-btn" data-poi-name="' + poi.name.replace(/"/g, '&quot;') + '"><i class="fa-solid fa-pen"></i> Add Trip Note</button>' +
+        '<div id="note-input-container-' + sid + '" class="note-input-container" style="display:none;"><textarea id="note-textarea-' + sid + '" placeholder="Type your note here..."></textarea><button class="note-save-btn" data-poi-name="' + poi.name.replace(/"/g, '&quot;') + '">Save Note</button></div>' +
+        '<div id="note-display-' + sid + '" class="note-display" style="display:none;"></div></div></div>';
+      document.getElementById('detail-content').innerHTML = html;
+      var overlay = document.getElementById('detail-overlay');
+      if (overlay) { overlay.style.display = 'block'; overlay.offsetHeight; overlay.classList.add('open'); }
+      var carousel = document.querySelector('.detail-carousel');
+      if (carousel) {
+        carousel.querySelectorAll('[data-carousel-dir]').forEach(function(btn) { btn.addEventListener('click', function() { changeImage(btn, parseInt(btn.getAttribute('data-carousel-dir'))); }); });
+        carousel.querySelectorAll('[data-dot-index]').forEach(function(dot) { dot.addEventListener('click', function() { jumpToImage(dot, parseInt(dot.getAttribute('data-dot-index'))); }); });
+        carousel.querySelectorAll('img').forEach(function(img) { img.addEventListener('click', function() { openFullscreen(img.getAttribute('data-img-src')); }); });
+      }
+      var nb = document.querySelector('#detail-content .detail-note-btn');
+      if (nb) nb.addEventListener('click', function() { toggleNoteInput(nb.getAttribute('data-poi-name')); });
+      var sb = document.querySelector('#detail-content .note-save-btn');
+      if (sb) sb.addEventListener('click', function() { saveNote(sb.getAttribute('data-poi-name')); });
+      updateNoteDisplay(poi.name);
+    };
+    var closePanelTimeout = null;
+    window.closeDetailPanel = function() { var o = document.getElementById('detail-overlay'); if (o) { if (closePanelTimeout) clearTimeout(closePanelTimeout); o.classList.remove('open'); closePanelTimeout = setTimeout(function(){o.style.display='none';closePanelTimeout=null;},250); } };
+
+    window.changeImage = function(btn, dir) {
+      var c = btn.parentNode; var imgs = c.getElementsByTagName('img'); var dots = c.getElementsByClassName('carousel-dot');
+      var ai = 0; for (var i = 0; i < imgs.length; i++) { if (imgs[i].className.indexOf('active') !== -1) { ai = i; break; } }
+      var ni = (ai + dir + imgs.length) % imgs.length;
+      for (var i = 0; i < imgs.length; i++) { imgs[i].className = ''; if (dots[i]) dots[i].className = 'carousel-dot'; }
+      imgs[ni].className = 'active'; if (dots[ni]) dots[ni].className = 'carousel-dot active';
+    };
+    window.jumpToImage = function(dot, idx) {
+      var dc = dot.parentNode; var c = dc.parentNode; var imgs = c.getElementsByTagName('img'); var dots = dc.getElementsByClassName('carousel-dot');
+      for (var i = 0; i < imgs.length; i++) { imgs[i].className = ''; dots[i].className = 'carousel-dot'; }
+      imgs[idx].className = 'active'; dots[idx].className = 'carousel-dot active';
+    };
+
+    var zs = 1.0, panning = false, sx = 0, sy = 0, tx = 0, ty = 0, imgEl = null;
+    window.openFullscreen = function(src) {
+      document.getElementById('fullscreen-overlay').style.display = 'flex';
+      imgEl = document.getElementById('fullscreen-img'); imgEl.src = src; zs = 1.0; tx = 0; ty = 0;
+      imgEl.style.transform = 'translate(0px,0px) scale(1)';
+      document.addEventListener('keydown', function(e) { if (e.key === 'Escape' || e.key === 'Esc') closeFullscreenDirect(); });
+    };
+    window.closeFullscreenDirect = function(e) { if (e) e.stopPropagation(); document.getElementById('fullscreen-overlay').style.display = 'none'; };
+
+    window.toggleNoteInput = function(n) { var sid = getSanitizedId(n); var ic = document.getElementById('note-input-container-' + sid); if (ic) { if (ic.style.display === 'none') { ic.style.display = 'flex'; var ta = document.getElementById('note-textarea-' + sid); if (ta) { ta.value = noteData[n] || ''; ta.focus(); } } else { ic.style.display = 'none'; } } };
+    window.saveNote = function(n) { var sid = getSanitizedId(n); var ta = document.getElementById('note-textarea-' + sid); if (ta) { noteData[n] = ta.value.trim(); updateNoteDisplay(n); document.getElementById('note-input-container-' + sid).style.display = 'none'; } };
+    window.updateNoteDisplay = function(n) { var sid = getSanitizedId(n); var d = document.getElementById('note-display-' + sid); if (d) { var t = noteData[n]; if (t) { d.innerHTML = '<div class="note-text-wrapper"><strong>✏️ Note:</strong> ' + t.replace(/\n/g,'<br>') + '</div><button class="note-delete-btn" title="Delete Note"><i class="fa-solid fa-trash"></i></button>'; d.style.display = 'flex'; d.querySelector('.note-delete-btn').addEventListener('click', function(){ delete noteData[n]; updateNoteDisplay(n); }); } else { d.innerHTML = ''; d.style.display = 'none'; } } };
+    window.deleteNote = function(n) { delete noteData[n]; updateNoteDisplay(n); };
+
+    // ----------------------------------------------------
+    // DRAWING - FIX 2: auto-disable on zoom/pan/day-select
+    // ----------------------------------------------------
+    var isDrawingMode = false, isDrawingActive = false, currentPolyline = null;
+    function closeDrawingIfActive() {
+      if (isDrawingMode) {
+        isDrawingMode = false; isDrawingActive = false; currentPolyline = null;
+        var btn = document.getElementById('map-draw-btn');
+        if (btn) btn.classList.remove('active');
+        map.getContainer().style.cursor = ''; map.dragging.enable(); drawingLayerGroup.clearLayers();
+      }
+    }
+    map.on('mousedown', function(e) { if (!isDrawingMode) return; isDrawingActive = true; map.dragging.disable(); currentPolyline = L.polyline([e.latlng], {color:'#ef4444',weight:2,opacity:0.8,interactive:false}).addTo(drawingLayerGroup); });
+    map.on('mousemove', function(e) { if (!isDrawingMode || !isDrawingActive || !currentPolyline) return; currentPolyline.addLatLng(e.latlng); });
+    map.on('mouseup', function() { if (!isDrawingMode) return; isDrawingActive = false; map.dragging.enable(); currentPolyline = null; });
+    map.on('mouseout', function() { if (isDrawingMode && isDrawingActive) { isDrawingActive = false; map.dragging.enable(); currentPolyline = null; } });
+    map.on('zoomstart', function() { if (isDrawingMode) closeDrawingIfActive(); });
+    map.on('dragstart', function() { if (isDrawingMode) closeDrawingIfActive(); });
+
+    // FIX 9: Only "Miami & Keys Trip" resets; map click does nothing on blank
+    window.resetMapAndDrawing = function() { closeDetailPanel(); resetFullOverview(); closeDrawingIfActive(); };
+    map.on('click', function(e) { if (!isDrawingMode) { closeDetailPanel(); } });
+
+    // ----------------------------------------------------
+    // CITY CLUSTERS
+    // ----------------------------------------------------
+    function renderCityClusters() {
+      clusterGroup.clearLayers();
+      for (var i = 0; i < cityClusters.length; i++) {
+        var cc = cityClusters[i];
+        var m = L.marker(cc.coord, { icon: L.divIcon({html:'<div class="city-cluster-inner">' + cc.name + '</div>',className:'city-cluster-marker',iconSize:null,iconAnchor:null}) });
+        (function(b) { m.on('click', function() { map.flyToBounds(b, {padding:[50,50],duration:1.5}); }); })(cc.bounds);
+        clusterGroup.addLayer(m);
+      }
+    }
+
+    // ----------------------------------------------------
+    // City Clusters and Florida National Parks
+    // ----------------------------------------------------
+    var npPois = [
+      { name:"Everglades NP", coord:[25.31,-80.93], bounds:[[25.1,-81.3],[25.5,-80.5]] },
+      { name:"Biscayne NP", coord:[25.50,-80.20], bounds:[[25.3,-80.4],[25.7,-80.0]] },
+      { name:"Dry Tortugas NP", coord:[24.63,-82.87], bounds:[[24.5,-82.97],[24.75,-82.77]] }
+    ];
+    var npMarkers = [];
+    function renderNpPois() {
+      for (var n = 0; n < npMarkers.length; n++) markerGroup.removeLayer(npMarkers[n]);
+      npMarkers = [];
+      var zoom = map.getZoom();
+      if (zoom >= 9) {
+        for (var n = 0; n < npPois.length; n++) {
+          var np = npPois[n];
+          if (zoom < 8) {
+            var labelHtml = '<div style="display:flex;align-items:center;gap:6px;transform:translate(-50%,-50%);"><i class="fa-solid fa-tree" style="color:#1B5E20;font-size:22px;"></i></div>';
+          } else {
+            // FIX 5: Gray label next to tree icon, clickable
+            var labelHtml = '<div style="display:flex;align-items:center;gap:6px;transform:translate(-50%,-50%);"><i class="fa-solid fa-tree" style="color:#1B5E20;font-size:22px;"></i><span style="color:#64748B;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;">' + np.name + '</span></div>';
+          }
+          var icon = L.divIcon({html:labelHtml,className:'custom-poi-marker',iconSize:[120,24],iconAnchor:[60,12]});
+          var m = L.marker(np.coord, {icon:icon,interactive:true});
+          markerGroup.addLayer(m); npMarkers.push(m);
+          (function(npData) {
+            m.on('click', function(e) {
+              L.DomEvent.stopPropagation(e);
+              map.flyTo(npData.coord, 10, {duration:1.0});
+              var npDescriptions = {
+                "Everglades NP": {
+                  desc: "Everglades National Park is a 1.5-million-acre wetlands preserve on the southern tip of Florida. Often compared to a grassy river, it is a critical habitat for numerous rare and endangered species, including the manatee, American crocodile, and the elusive Florida panther.",
+                  tips: "Visit the Shark Valley visitor center to walk, bike, or take a tram tour along the 15-mile paved loop. Bring heavy-duty bug spray!",
+                  images: ["https://upload.wikimedia.org/wikipedia/commons/0/07/Everglades_National_Park_Alligator.jpg", "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=800"]
+                },
+                "Biscayne NP": {
+                  desc: "Biscayne National Park protects a rare combination of aquamarine waters, emerald islands, and fish-filled coral reefs. It is 95% water and contains the northernmost part of the Florida Reef, the only living coral barrier reef in the continental US.",
+                  tips: "Since almost the entire park is water-based, the best way to explore it is by booking a guided snorkeling, kayaking, or boat excursion through the visitor center.",
+                  images: ["https://upload.wikimedia.org/wikipedia/commons/d/df/Biscayne_National_Park_Snorkeling.jpg", "https://images.pexels.com/photos/1450353/pexels-photo-1450353.jpeg?auto=compress&cs=tinysrgb&w=800"]
+                },
+                "Dry Tortugas NP": {
+                  desc: "Located 70 miles west of Key West, Dry Tortugas National Park is a remote park consisting of open water, coral reefs, and 7 small islands. It is famous for the majestic Fort Jefferson, a massive 19th-century brick fortress, and pristine snorkeling waters.",
+                  tips: "Access is only via the Yankee Freedom ferry or seaplane. Book your tickets several months in advance as they sell out very quickly.",
+                  images: ["https://upload.wikimedia.org/wikipedia/commons/d/de/Fort_Jefferson_Dry_Tortugas_Florida.jpg", "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Lifeguard_stand%2C_Miami_Beach.jpg/500px-Lifeguard_stand%2C_Miami_Beach.jpg"]
+                }
+              };
+              var npInfo = npDescriptions[npData.name] || { desc: npData.name + " is a beautiful Florida national park protecting rich coastal ecosystems.", tips: "Check NPS.gov for hours and conditions.", images: [fallbackImage] };
+              var fakePoi = {
+                name: npData.name,
+                coord: npData.coord,
+                type: "national_park",
+                icon: "fa-tree",
+                color: "#1B5E20",
+                desc: npInfo.desc,
+                tips: npInfo.tips,
+                images: npInfo.images,
+                dayDateStr: "National Park"
+              };
+              openPoiDetails(fakePoi);
+            });
+          })(np);
+        }
+      }
+    }
+
+    // ----------------------------------------------------
+    // ZOOM HANDLING - FIX 1: static routes always visible
+    // ----------------------------------------------------
+    function handleZoomVisibility() {
+      var z = map.getZoom();
+      if (z < 9) {
+        if (map.hasLayer(markerGroup)) map.removeLayer(markerGroup);
+        if (map.hasLayer(leaderLineGroup)) map.removeLayer(leaderLineGroup);
+        if (map.hasLayer(textLabelGroup)) map.removeLayer(textLabelGroup);
+        if (!map.hasLayer(clusterGroup)) map.addLayer(clusterGroup);
+      } else {
+        renderPois(); // Added so POIs positions adjust on zoom!
+        renderAnnotations();
+        if (!map.hasLayer(markerGroup)) map.addLayer(markerGroup);
+        if (!map.hasLayer(leaderLineGroup)) map.addLayer(leaderLineGroup);
+        if (!map.hasLayer(textLabelGroup)) map.addLayer(textLabelGroup);
+        // FIX 1: static routes always visible, don't remove them
+        if (!map.hasLayer(staticRouteGroup)) map.addLayer(staticRouteGroup);
+        if (!map.hasLayer(activeRouteGroup)) map.addLayer(activeRouteGroup);
+        if (map.hasLayer(clusterGroup)) map.removeLayer(clusterGroup);
+        renderNpPois();
+      }
+      updateRouteStyles();
+    }
+
+    map.on('zoomend', handleZoomVisibility);
+    renderPois();
+    renderCityClusters();
+    renderNpPois();
+    handleZoomVisibility();
+
+    for (var d = 1; d <= 11; d++) routes[d] = [];
+
+    
+
+    // ----------------------------------------------------
+    // ROUTE FETCHING - FIX 8: Day 4 = 2 segments
+    // ----------------------------------------------------
+    function fetchRoute(dayObj) {
+      var dn = dayObj.day;
+      if (dn === 4 && dayObj.routeSegments) {
+        for (var s = 0; s < dayObj.routeSegments.length; s++) {
+          var seg = dayObj.routeSegments[s];
+          var cs = '';
+          for (var i = 0; i < seg.coords.length; i++) { cs += seg.coords[i][1] + ',' + seg.coords[i][0]; if (i < seg.coords.length-1) cs += ';'; }
+          (function(lb) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://router.project-osrm.org/route/v1/driving/' + cs + '?geometries=geojson&overview=full', true);
+            xhr.onreadystatechange = function() {
+              if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                  try {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r.routes && r.routes.length > 0) {
+                      var poly = L.geoJSON(r.routes[0].geometry, {style:function(){return{color:'#0f172a',weight:3,dashArray:'10,11',opacity:0.3};}});
+                      poly.bindTooltip(lb,{className:'leaflet-tooltip-own',sticky:true});
+                      staticRouteGroup.addLayer(poly); routes[dn].push(poly);
+                    }
+                  } catch(e) { fallbackSL(seg.coords, lb, dn); }
+                } else { fallbackSL(seg.coords, lb, dn); }
+              }
+            }; xhr.send();
+          })(seg.label);
+        }
+        return;
+      }
+      if (dn === -1) { // disabled
+        var bp = L.polyline(dayObj.boatRouteCoords, {color:'#7b1fa2',weight:3,dashArray:'5,5',opacity:0.3});
+        bp.bindTooltip("Kenai Fjords Cruise",{className:'leaflet-tooltip-own',sticky:true});
+        staticRouteGroup.addLayer(bp); routes[dn].push(bp); return;
+      }
+      if (!dayObj.routeCoords || dayObj.routeCoords.length < 2) return;
+      var cs = '';
+      for (var i = 0; i < dayObj.routeCoords.length; i++) { cs += dayObj.routeCoords[i][1] + ',' + dayObj.routeCoords[i][0]; if (i < dayObj.routeCoords.length-1) cs += ';'; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'https://router.project-osrm.org/route/v1/driving/' + cs + '?geometries=geojson&overview=full', true);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            try {
+              var r = JSON.parse(xhr.responseText);
+              if (r.routes && r.routes.length > 0) {
+                var poly = L.geoJSON(r.routes[0].geometry, {style:function(){return{color:'#0f172a',weight:3,dashArray:'10,11',opacity:0.3};}});
+                var ts = driveTimes[dn]; if (ts) poly.bindTooltip(ts,{className:'leaflet-tooltip-own',sticky:true});
+                staticRouteGroup.addLayer(poly); routes[dn].push(poly);
+              }
+            } catch(e) { fallbackSL(dayObj.routeCoords, driveTimes[dn]||'', dn); }
+          } else { fallbackSL(dayObj.routeCoords, driveTimes[dn]||'', dn); }
+        }
+      }; xhr.send();
+    }
+    function fallbackSL(coords, label, dn) {
+      var poly = L.polyline(coords, {color:'#0f172a',weight:3,dashArray:'10,11',opacity:0.3});
+      if (label) poly.bindTooltip(label,{className:'leaflet-tooltip-own',sticky:true});
+      staticRouteGroup.addLayer(poly); routes[dn].push(poly);
+    }
+    for (var d = 0; d < tripData.length; d++) fetchRoute(tripData[d]);
+
+    // ----------------------------------------------------
+    // DAY SELECTION
+    // ----------------------------------------------------
+    function updateRouteStyles() {
+      var z = map.getZoom();
+      for (var id in routes) { if (routes.hasOwnProperty(id)) {
+        var dn = parseInt(id), list = routes[id];
+        for (var j = 0; j < list.length; j++) {
+          var line = list[j], isT = line.isTundraRoute, isC = (dn === activeDay);
+          var dash = isT ? '3,6' : (dn == 9 ? '5,5' : '10,11');
+          var col = isT ? '#E65100' : (dn == 9 ? '#7b1fa2' : '#0f172a');
+          var op, w;
+          if (z >= 10) {
+            op = (activeDay !== null) ? (isC ? 0.5 : 0.05) : 0.05;
+            w = isT ? 4 : (dn == 9 ? 3.5 : 3.5);
+          } else {
+            if (activeDay !== null) { op = isC ? 1.0 : 0.1; w = isC ? (isT ? 4 : (dn==9?3.5:3.5)) : (isT ? 4 : 3); }
+            else { op = 0.3; w = isT ? 4 : 3; }
+          }
+          line.setStyle({color:col, opacity:op, weight:w, dashArray:dash});
+          if (isC && op > 0.05 && typeof line.bringToFront === 'function') line.bringToFront();
+        }
+      }}
+    }
+
+    function selectDay(dayNum) {
+      closeDetailPanel();
+      closeDrawingIfActive();
+      activeDay = dayNum;
+      updateSidebar();
+      updateRouteStyles();
+      var ac = document.getElementById('day-card-' + dayNum);
+      if (ac) { ac.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      var dd = null;
+      for (var k = 0; k < tripData.length; k++) { if (tripData[k].day === dayNum) { dd = tripData[k]; break; } }
+      if (dd) {
+        // FIX 3: Day 2 = Denali only
+        if (dayNum === 2) {
+          map.flyTo([25.76, -80.20], 13, {duration:1.5});
+        } else if (dayNum === 4) {
+          map.flyTo([24.55, -81.80], 14, {duration:1.5});
+        } else if (dayNum === 6) {
+          map.flyTo([26.0, -82.0], 7, {duration:1.5});
+        } else {
+          var b = [];
+          for (var p = 0; p < dd.pois.length; p++) b.push(dd.pois[p].coord);
+          if (dd.boatRouteCoords && dd.boatRouteCoords.length > 0) { for (var r = 0; r < dd.boatRouteCoords.length; r++) b.push(dd.boatRouteCoords[r]); }
+          else if (dd.routeCoords && dd.routeCoords.length > 0) { for (var r = 0; r < dd.routeCoords.length; r++) b.push(dd.routeCoords[r]); }
+          if (b.length > 0) map.flyToBounds(b, {padding:[80,80],duration:1.5});
+        }
+      }
+    }
+
+    function resetFullOverview() {
+      activeDay = null;
+      updateSidebar();
+      updateRouteStyles();
+      var all = [];
+      for (var d = 0; d < tripData.length; d++) { for (var p = 0; p < tripData[d].pois.length; p++) { all.push(tripData[d].pois[p].coord); } }
+      if (all.length > 0) map.flyToBounds(all, {padding:[50,50],duration:1.5});
+    }
+
+    // Keyboard
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' || e.key === 'Esc') closeDetailPanel();
+      else if (e.key === 'ArrowRight') { var n = (activeDay===null)?1:activeDay+1; if (n>tripData.length) n=1; selectDay(n); }
+      else if (e.key === 'ArrowLeft') { var p = (activeDay===null)?tripData.length:activeDay-1; if (p<1) p=tripData.length; selectDay(p); }
+    });
+
+    var tsx = 0, tex = 0;
+    sidebarContent.addEventListener('touchstart',function(e){tsx=e.changedTouches[0].screenX;},false);
+    sidebarContent.addEventListener('touchend',function(e){
+      tex=e.changedTouches[0].screenX; if(window.innerWidth>=768) return;
+      if(tex<tsx-50){var n=(activeDay===null)?1:activeDay+1; if(n>tripData.length)n=1; selectDay(n);}
+      else if(tex>tsx+50){var p=(activeDay===null)?tripData.length:activeDay-1; if(p<1)p=tripData.length; selectDay(p);}
+    },false);
+
+    // ----------------------------------------------------
+    // CONTROLS
+    // ----------------------------------------------------
+    var ToggleControl = L.Control.extend({
+      options:{position:'topright'},
+      onAdd:function(){
+        var c = L.DomUtil.create('div','map-toggle-control');
+        var sb = L.DomUtil.create('button','map-toggle-btn active',c); sb.innerHTML='Street';
+        var sat = L.DomUtil.create('button','map-toggle-btn',c); sat.innerHTML='Satellite';
+        L.DomUtil.create('div','map-toggle-divider',c);
+        var db = L.DomUtil.create('button','map-toggle-btn',c); db.id='map-draw-btn'; db.innerHTML='<i class="fa-solid fa-pen"></i>'; db.title='Draw Mode';
+        L.DomEvent.on(sb,'click',function(){if(!map.hasLayer(positronTile)){map.removeLayer(satelliteTile);map.addLayer(positronTile);L.DomUtil.removeClass(map.getContainer(),'satellite-active');L.DomUtil.addClass(sb,'active');L.DomUtil.removeClass(sat,'active');}});
+        L.DomEvent.on(sat,'click',function(){if(!map.hasLayer(satelliteTile)){map.removeLayer(positronTile);map.addLayer(satelliteTile);L.DomUtil.addClass(map.getContainer(),'satellite-active');L.DomUtil.addClass(sat,'active');L.DomUtil.removeClass(sb,'active');}});
+        L.DomEvent.on(db,'click',function(){
+          isDrawingMode = !isDrawingMode;
+          if(isDrawingMode){db.classList.add('active');map.getContainer().style.cursor='crosshair';}
+          else{db.classList.remove('active');map.getContainer().style.cursor='';drawingLayerGroup.clearLayers();}
+        });
+        return c;
+      }
+    });
+    map.addControl(new ToggleControl());
+
+    // FIX 12: Legend = 1 icon per row (no duplicate emoji)
+    var LegendControl = L.Control.extend({
+      options:{position:'bottomright'},
+      onAdd:function(){
+        var c = L.DomUtil.create('div','map-legend');
+        c.innerHTML =
+          '<div class="legend-item"><i class="fa-solid fa-landmark" style="color:#2e7d32"></i> <span>Landmark / Museum</span></div>' +
+          '<div class="legend-item"><i class="fa-solid fa-umbrella-beach" style="color:#1565c0"></i> <span>Beach / Aquarium</span></div>' +
+          '<div class="legend-item"><i class="fa-solid fa-utensils" style="color:#c62828"></i> <span>Dining</span></div>' +
+          '<div class="legend-item"><i class="fa-solid fa-wine-glass" style="color:#7b1fa2"></i> <span>Bar / Nightlife</span></div>' +
+          '<div class="legend-item"><i class="fa-solid fa-bag-shopping" style="color:#e65100"></i> <span>Shopping</span></div>' +
+          '<div class="legend-item"><i class="fa-solid fa-tree" style="color:#1B5E20"></i> <span>National Park</span></div>';
+        return c;
+      }
+    });
+    map.addControl(new LegendControl());
+
+    // ----------------------------------------------------
+    // EVENT BINDING (no inline onclick)
+    // ----------------------------------------------------
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('sidebar-title').addEventListener('click', function() { resetMapAndDrawing(); });
+      document.getElementById('detail-close-btn').addEventListener('click', function() { closeDetailPanel(); });
+      document.getElementById('detail-overlay').addEventListener('click', function(e) { if (e.target === this) closeDetailPanel(); });
+      document.getElementById('fullscreen-close-btn').addEventListener('click', function(e) { closeFullscreenDirect(e); });
+      document.getElementById('fullscreen-overlay').addEventListener('click', function(e) { if (e.target === this) closeFullscreenDirect(e); });
+      var fc = document.querySelector('.fullscreen-image-container');
+      if (fc) {
+        fc.addEventListener('wheel', function(e) { e.preventDefault(); var zf=1.1; if(e.deltaY>0) zs=Math.max(0.5,zs/zf); else zs=Math.min(5.0,zs*zf); if(imgEl) imgEl.style.transform='translate('+tx+'px,'+ty+'px) scale('+zs+')'; }, {passive:false});
+        fc.addEventListener('mousedown', function(e) { e.preventDefault(); panning=true; sx=e.clientX-tx; sy=e.clientY-ty; });
+        window.addEventListener('mousemove', function(e) { if(!panning) return; tx=e.clientX-sx; ty=e.clientY-sy; if(imgEl) imgEl.style.transform='translate('+tx+'px,'+ty+'px) scale('+zs+')'; });
+        window.addEventListener('mouseup', function() { panning=false; });
+        fc.addEventListener('touchstart', function(e) { if(e.touches.length===1){panning=true;lastTouchX=e.touches[0].clientX;lastTouchY=e.touches[0].clientY;}else if(e.touches.length===2){panning=false;initialDistance=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);initialScale=zs;} }, {passive:false});
+        fc.addEventListener('touchmove', function(e) { e.preventDefault(); if(panning&&e.touches.length===1){tx+=e.touches[0].clientX-lastTouchX;ty+=e.touches[0].clientY-lastTouchY;lastTouchX=e.touches[0].clientX;lastTouchY=e.touches[0].clientY;if(imgEl)imgEl.style.transform='translate('+tx+'px,'+ty+'px) scale('+zs+')';}else if(e.touches.length===2){var dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);zs=Math.min(5,Math.max(0.5,initialScale*(dist/initialDistance)));if(imgEl)imgEl.style.transform='translate('+tx+'px,'+ty+'px) scale('+zs+')';} }, {passive:false});
+        fc.addEventListener('touchend', function() { panning=false; });
+      }
+    });
+
+    setTimeout(function() { resetFullOverview(); }, 500);
+
+    // Mobile Drag Handle Touch Interaction
+    var dragHandle = document.getElementById('sidebar-drag-handle');
+    var sidebar = document.getElementById('sidebar');
+    
+    if (dragHandle && sidebar) {
+      var startY = 0;
+      var startHeight = 0;
+      var isDragging = false;
+      
+      dragHandle.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 1) {
+          startY = e.touches[0].clientY;
+          startHeight = sidebar.getBoundingClientRect().height;
+          isDragging = true;
+          sidebar.classList.add('dragging');
+        }
+      }, { passive: true });
+      
+      window.addEventListener('touchmove', function(e) {
+        if (!isDragging) return;
+        if (e.cancelable) e.preventDefault();
+        var currentY = e.touches[0].clientY;
+        var deltaY = startY - currentY;
+        var newHeight = startHeight + deltaY;
+        
+        var minH = window.innerHeight * 0.32;
+        var maxH = window.innerHeight;
+        if (newHeight < minH) newHeight = minH;
+        if (newHeight > maxH) newHeight = maxH;
+        
+        sidebar.style.height = newHeight + 'px';
+      }, { passive: false });
+      
+      window.addEventListener('touchend', function(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        sidebar.classList.remove('dragging');
+        
+        var currentHeight = sidebar.getBoundingClientRect().height;
+        var threshold = window.innerHeight * 0.55;
+        
+        if (currentHeight > threshold) {
+          sidebar.style.height = '100vh';
+          sidebar.classList.remove('mobile-collapsed');
+          sidebar.classList.add('mobile-expanded');
+        } else {
+          sidebar.style.height = '32vh';
+          sidebar.classList.add('mobile-collapsed');
+          sidebar.classList.remove('mobile-expanded');
+        }
+        
+        updateSidebar();
+        
+        setTimeout(function() {
+          map.invalidateSize();
+        }, 320);
+      }, { passive: true });
+    }
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth > 768) {
+        if (sidebar) sidebar.style.height = '';
+      } else {
+        if (sidebar) {
+          if (sidebar.classList.contains('mobile-collapsed')) {
+            sidebar.style.height = '32vh';
+          } else {
+            sidebar.style.height = '100vh';
+          }
+        }
+      }
+      updateSidebar();
+    });
+  </script>
+</body>
+</html>
